@@ -22,31 +22,33 @@ The ML pipeline works as follows:
 ```bash
 git clone https://github.com/synthetichealth/synthea.git
 cd synthea
-
+```
 Generate patient data (adjust the number of patients as needed):
 
-bash
-Copy code
+```bash
 ./run_synthea -p 100
+```
+
 This will create synthetic patient records in synthea/output/csv/.
 
 In your ML project, point to the CSV folder (should already be done):
 
-python
-Copy code
+```python
 csv_path = "synthea/output/csv/"
+```
 NOTE: Do not commit the full Synthea repository or generated CSVs to GitHub (PLEASE). Add the following to .gitignore:
 
-bash
-Copy code
+```bash
 synthea/output/
 *.csv
+```
+
 Usage
 Run the main script:
 
-bash
-Copy code
+```bash
 python icu-predictive-analysis.py
+```
 The script will:
 
 Load the patient CSVs
@@ -66,6 +68,6 @@ scikit-learn
 
 Install dependencies via:
 
-bash
-Copy code
+```bash
 pip install -r requirements.txt
+```
