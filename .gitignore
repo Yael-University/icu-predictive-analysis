@@ -1,3 +1,7 @@
 synthea
 *.csv
 *.log
+package
+model_lambda.zip
+python
+layer.zip
