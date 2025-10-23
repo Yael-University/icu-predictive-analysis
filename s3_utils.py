@@ -24,12 +24,10 @@ def save_and_upload_plot(
     Returns:
         str: Presigned URL for the uploaded file.
     """
-    # Save locally (no timestamp — will overwrite existing file)
     plt_obj.savefig(filename, bbox_inches="tight")
     plt_obj.close()
     print(f"Plot saved locally as {filename}")
 
-    # Upload to S3
     s3 = boto3.client("s3")
     object_name = f"{folder}/{filename}"
 
@@ -37,7 +35,6 @@ def save_and_upload_plot(
         s3.upload_file(filename, bucket_name, object_name)
         print(f"Uploaded to s3://{bucket_name}/{object_name}")
 
-        # Generate presigned URL
         url = s3.generate_presigned_url(
             "get_object",
             Params={"Bucket": bucket_name, "Key": object_name},
@@ -57,3 +54,22 @@ def save_and_upload_plot(
             print(f"Local file {filename} removed after upload.")
 
     return None
+
+
+def upload_file_to_s3(local_file, bucket_name, object_name):
+    """
+    Uploads a local file to an S3 bucket and overwrites if it already exists.
+    
+    Args:
+        local_file (str): Path to the local file.
+        bucket_name (str): Name of the S3 bucket.
+        object_name (str): Key (path + filename) for the file in the bucket.
+    """
+    s3 = boto3.client("s3")
+    try:
+        s3.upload_file(local_file, bucket_name, object_name)
+        print(f"Uploaded file to s3://{bucket_name}/{object_name}")
+    except FileNotFoundError:
+        print(f"File not found: {local_file}")
+    except NoCredentialsError:
+        print("AWS credentials not available.")
