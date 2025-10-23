@@ -282,18 +282,36 @@ plt.title('ROC Curve - Logistic Regression')
 plt.legend(loc='lower right')
 save_and_upload_plot(plt, bucket_name, folder=folder, filename="roc_curve.png")
 
-# --- Combined Dashboard ------------------------------------------------------------------------------------------------
+# --- Metrics Summary (printed and saved) --------------------------------------------------------
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+
 acc = accuracy_score(y_test, y_pred)
 prec = precision_score(y_test, y_pred)
 rec = recall_score(y_test, y_pred)
 f1 = f1_score(y_test, y_pred)
 
-import pandas as pd
-metrics_df = pd.DataFrame([["Logistic Regression", acc, prec, rec, f1, roc_auc]],
-                          columns=["Model", "Accuracy", "Precision", "Recall", "F1", "AUC"])
+print("\n=== Logistic Regression Metrics Summary ===")
+print(f"Accuracy:  {acc:.4f}")
+print(f"Precision: {prec:.4f}")
+print(f"Recall:    {rec:.4f}")
+print(f"F1 Score:  {f1:.4f}")
+print(f"AUC:       {roc_auc:.4f}")
+print("==========================================\n")
 
-sns.barplot(x="Model", y="AUC", data=metrics_df)
-plt.title("Model Metrics - Logistic Regression")
-save_and_upload_plot(plt, bucket_name, folder=folder, filename="dashboard.png")
+# Save summary as a small text file and upload to S3
+summary_text = (
+    f"Model: Logistic Regression\n"
+    f"Accuracy:  {acc:.4f}\n"
+    f"Precision: {prec:.4f}\n"
+    f"Recall:    {rec:.4f}\n"
+    f"F1 Score:  {f1:.4f}\n"
+    f"AUC:       {roc_auc:.4f}\n"
+)
+summary_filename = "metrics_summary.txt"
+with open(summary_filename, "w") as f:
+    f.write(summary_text)
+
+from s3_utils import upload_file_to_s3
+upload_file_to_s3(summary_filename, bucket_name, f"{folder}/{summary_filename}")
 
 print("Model training and evaluation complete.")
