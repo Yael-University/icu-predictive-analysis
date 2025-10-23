@@ -5,7 +5,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc, precision_score, recall_score, f1_score, accuracy_score
 from xgboost import XGBClassifier
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -110,9 +110,48 @@ plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Confusion Matrix - XGBoost Classifier")
 
-# Save and upload to S3
 bucket_name = "asghar-model-output"
-url = save_and_upload_plot(plt, bucket_name, filename="xgboost_confusion_matrix.png")
+folder = "ml_outputs/xgboost"
+save_and_upload_plot(plt, bucket_name, folder=folder, filename="confusion_matrix.png")
+
+# --- ROC Curve ---
+y_prob = clf.predict_proba(X_test)[:, 1]
+fpr, tpr, _ = roc_curve(y_test, y_prob)
+roc_auc = auc(fpr, tpr)
+
+plt.figure()
+plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+plt.plot([0, 1], [0, 1], color='gray', linestyle='--')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve - XGBoost')
+plt.legend(loc='lower right')
+save_and_upload_plot(plt, bucket_name, folder=folder, filename="roc_curve.png")
+
+# --- Feature Importance ---
+model = clf.named_steps["classifier"]
+feature_names = clf.named_steps["preprocessor"].get_feature_names_out()
+importances = model.feature_importances_
+
+import numpy as np
+indices = np.argsort(importances)[::-1]
+plt.figure(figsize=(10,6))
+sns.barplot(x=importances[indices], y=feature_names[indices])
+plt.title("Feature Importance - XGBoost")
+save_and_upload_plot(plt, bucket_name, folder=folder, filename="feature_importance.png")
+
+# --- Combined Dashboard ---
+acc = accuracy_score(y_test, y_pred)
+prec = precision_score(y_test, y_pred)
+rec = recall_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
+
+import pandas as pd
+metrics_df = pd.DataFrame([["XGBoost", acc, prec, rec, f1, roc_auc]],
+                          columns=["Model", "Accuracy", "Precision", "Recall", "F1", "AUC"])
+
+sns.barplot(x="Model", y="AUC", data=metrics_df)
+plt.title("Model Metrics - XGBoost")
+save_and_upload_plot(plt, bucket_name, folder=folder, filename="dashboard.png")
 
 print("XGBoost training and evaluation complete.")
-print(f"View confusion matrix: {url}")

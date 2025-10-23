@@ -2,7 +2,6 @@ synthea/*
 !synthea/output/
 synthea/output/*
 !synthea/output/csv/
-synthea/output/csv/*
 !synthea/output/csv/*.csv
 *.csv
 *.log
