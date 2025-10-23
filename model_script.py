@@ -1,3 +1,4 @@
+# This base file uses logistic regression to predict patient mortality based on Synthea-generated EHR data
 import pandas as pd
 from datetime import datetime
 from sklearn.model_selection import train_test_split
@@ -9,6 +10,9 @@ from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.impute import SimpleImputer
 import seaborn as sns
 import matplotlib.pyplot as plt
+
+# Import custom S3 helper
+from s3_utils import save_and_upload_plot
 
 # Path to synthea folder
 csv_path = "synthea/output/csv/"
@@ -121,7 +125,11 @@ print(cm)
 sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["Alive", "Dead"], yticklabels=["Alive", "Dead"])
 plt.xlabel("Predicted")
 plt.ylabel("Actual")
-plt.title("Confusion Matrix")
-plt.show()
+plt.title("Confusion Matrix - Logistic Regression")
+
+# Save and upload to S3
+bucket_name = "asghar-model-output"
+url = save_and_upload_plot(plt, bucket_name, filename="logreg_confusion_matrix.png")
 
 print("Model training and evaluation complete.")
+print(f"View confusion matrix: {url}")

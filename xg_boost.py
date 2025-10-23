@@ -10,6 +10,9 @@ from xgboost import XGBClassifier
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+# Import custom S3 helper
+from s3_utils import save_and_upload_plot
+
 # Path to synthea folder
 csv_path = "synthea/output/csv/"
 
@@ -106,6 +109,10 @@ sns.heatmap(cm, annot=True, fmt="d", cmap="Oranges", xticklabels=["Alive", "Dead
 plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Confusion Matrix - XGBoost Classifier")
-plt.show()
+
+# Save and upload to S3
+bucket_name = "asghar-model-output"
+url = save_and_upload_plot(plt, bucket_name, filename="xgboost_confusion_matrix.png")
 
 print("XGBoost training and evaluation complete.")
+print(f"View confusion matrix: {url}")
