@@ -2,7 +2,6 @@ import boto3
 from botocore.exceptions import NoCredentialsError
 import matplotlib.pyplot as plt
 import os
-from datetime import datetime
 
 def save_and_upload_plot(
     plt_obj,
@@ -12,8 +11,9 @@ def save_and_upload_plot(
     expiration=3600
 ):
     """
-    Saves a matplotlib plot locally, uploads it to S3, and returns a presigned URL.
-    
+    Saves a matplotlib plot locally, uploads it to S3 (overwriting existing file),
+    and returns a presigned URL.
+
     Args:
         plt_obj: The matplotlib.pyplot module or figure object.
         bucket_name: Your S3 bucket name.
@@ -24,12 +24,7 @@ def save_and_upload_plot(
     Returns:
         str: Presigned URL for the uploaded file.
     """
-    # Timestamped file name to avoid overwrites
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base, ext = os.path.splitext(filename)
-    filename = f"{base}_{timestamp}{ext}"
-
-    # Save locally
+    # Save locally (no timestamp — will overwrite existing file)
     plt_obj.savefig(filename, bbox_inches="tight")
     plt_obj.close()
     print(f"Plot saved locally as {filename}")
@@ -55,5 +50,10 @@ def save_and_upload_plot(
         print("The file was not found.")
     except NoCredentialsError:
         print("AWS credentials not available.")
-    
+
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
+            print(f"Local file {filename} removed after upload.")
+
     return None
