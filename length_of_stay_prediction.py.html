@@ -1,0 +1,371 @@
+<html>
+<head>
+<title>length_of_stay_prediction.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+length_of_stay_prediction.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">os</span>
+<span class="s0">import </span><span class="s1">pandas </span><span class="s0">as </span><span class="s1">pd</span>
+<span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<span class="s0">import </span><span class="s1">warnings</span>
+<span class="s1">warnings</span><span class="s2">.</span><span class="s1">filterwarnings</span><span class="s2">(</span><span class="s3">'ignore'</span><span class="s2">)</span>
+
+<span class="s0">from </span><span class="s1">sklearn</span><span class="s2">.</span><span class="s1">model_selection </span><span class="s0">import </span><span class="s1">train_test_split</span><span class="s2">, </span><span class="s1">cross_val_score</span>
+<span class="s0">from </span><span class="s1">sklearn</span><span class="s2">.</span><span class="s1">preprocessing </span><span class="s0">import </span><span class="s1">StandardScaler</span>
+<span class="s0">from </span><span class="s1">sklearn</span><span class="s2">.</span><span class="s1">impute </span><span class="s0">import </span><span class="s1">SimpleImputer</span>
+<span class="s0">from </span><span class="s1">sklearn</span><span class="s2">.</span><span class="s1">linear_model </span><span class="s0">import </span><span class="s1">Ridge</span>
+<span class="s0">from </span><span class="s1">sklearn</span><span class="s2">.</span><span class="s1">metrics </span><span class="s0">import </span><span class="s2">(</span>
+    <span class="s1">mean_absolute_error</span><span class="s2">,</span>
+    <span class="s1">mean_squared_error</span><span class="s2">,</span>
+    <span class="s1">r2_score</span><span class="s2">,</span>
+    <span class="s1">mean_absolute_percentage_error</span>
+<span class="s2">)</span>
+
+<span class="s0">import </span><span class="s1">matplotlib</span>
+<span class="s1">matplotlib</span><span class="s2">.</span><span class="s1">use</span><span class="s2">(</span><span class="s3">&quot;Agg&quot;</span><span class="s2">)</span>
+<span class="s0">import </span><span class="s1">matplotlib</span><span class="s2">.</span><span class="s1">pyplot </span><span class="s0">as </span><span class="s1">plt</span>
+
+<span class="s1">DATA_DIR </span><span class="s2">= </span><span class="s3">&quot;MIMIC&quot;</span>
+
+<span class="s1">ADMISSIONS_CSV </span><span class="s2">= </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s1">DATA_DIR</span><span class="s2">, </span><span class="s3">&quot;admissions.csv&quot;</span><span class="s2">)</span>
+<span class="s1">PATIENTS_CSV </span><span class="s2">= </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s1">DATA_DIR</span><span class="s2">, </span><span class="s3">&quot;patients.csv&quot;</span><span class="s2">)</span>
+<span class="s1">DIAGNOSES_CSV </span><span class="s2">= </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s1">DATA_DIR</span><span class="s2">, </span><span class="s3">&quot;diagnoses_icd.csv&quot;</span><span class="s2">)</span>
+<span class="s1">PROCEDURES_CSV </span><span class="s2">= </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s1">DATA_DIR</span><span class="s2">, </span><span class="s3">&quot;procedures_icd.csv&quot;</span><span class="s2">)</span>
+
+<span class="s1">RANDOM_STATE </span><span class="s2">= </span><span class="s4">42</span>
+
+<span class="s0">def </span><span class="s1">must_exist</span><span class="s2">(</span><span class="s1">path</span><span class="s2">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None</span><span class="s2">:</span>
+    <span class="s0">if not </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">exists</span><span class="s2">(</span><span class="s1">path</span><span class="s2">):</span>
+        <span class="s0">raise </span><span class="s1">FileNotFoundError</span><span class="s2">(</span><span class="s3">f&quot;Missing required file: </span><span class="s0">{</span><span class="s1">path</span><span class="s0">}</span><span class="s3">&quot;</span><span class="s2">)</span>
+
+<span class="s0">def </span><span class="s1">safe_read_csv</span><span class="s2">(</span><span class="s1">path</span><span class="s2">: </span><span class="s1">str</span><span class="s2">, </span><span class="s1">usecols</span><span class="s2">=</span><span class="s0">None</span><span class="s2">, </span><span class="s1">parse_dates</span><span class="s2">=</span><span class="s0">None</span><span class="s2">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s0">None</span><span class="s2">) </span><span class="s1">-&gt; pd</span><span class="s2">.</span><span class="s1">DataFrame</span><span class="s2">:</span>
+    <span class="s0">return </span><span class="s1">pd</span><span class="s2">.</span><span class="s1">read_csv</span><span class="s2">(</span>
+        <span class="s1">path</span><span class="s2">,</span>
+        <span class="s1">usecols</span><span class="s2">=</span><span class="s1">usecols</span><span class="s2">,</span>
+        <span class="s1">parse_dates</span><span class="s2">=</span><span class="s1">parse_dates</span><span class="s2">,</span>
+        <span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s2">,</span>
+        <span class="s1">low_memory</span><span class="s2">=</span><span class="s0">False</span><span class="s2">,</span>
+    <span class="s2">)</span>
+
+<span class="s0">def </span><span class="s1">evaluate_model</span><span class="s2">(</span><span class="s1">y_train</span><span class="s2">, </span><span class="s1">y_pred_train</span><span class="s2">, </span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">y_pred_test</span><span class="s2">):</span>
+    <span class="s5">&quot;&quot;&quot;Comprehensive model evaluation&quot;&quot;&quot;</span>
+    
+    <span class="s6"># Clip negative predictions</span>
+    <span class="s1">y_pred_train </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">maximum</span><span class="s2">(</span><span class="s1">y_pred_train</span><span class="s2">, </span><span class="s4">0</span><span class="s2">)</span>
+    <span class="s1">y_pred_test </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">maximum</span><span class="s2">(</span><span class="s1">y_pred_test</span><span class="s2">, </span><span class="s4">0</span><span class="s2">)</span>
+    
+    <span class="s6"># Training metrics</span>
+    <span class="s1">train_mae </span><span class="s2">= </span><span class="s1">mean_absolute_error</span><span class="s2">(</span><span class="s1">y_train</span><span class="s2">, </span><span class="s1">y_pred_train</span><span class="s2">)</span>
+    <span class="s1">train_rmse </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s1">mean_squared_error</span><span class="s2">(</span><span class="s1">y_train</span><span class="s2">, </span><span class="s1">y_pred_train</span><span class="s2">))</span>
+    <span class="s1">train_r2 </span><span class="s2">= </span><span class="s1">r2_score</span><span class="s2">(</span><span class="s1">y_train</span><span class="s2">, </span><span class="s1">y_pred_train</span><span class="s2">)</span>
+    
+    <span class="s6"># Test metrics</span>
+    <span class="s1">test_mae </span><span class="s2">= </span><span class="s1">mean_absolute_error</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">y_pred_test</span><span class="s2">)</span>
+    <span class="s1">test_rmse </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s1">mean_squared_error</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">y_pred_test</span><span class="s2">))</span>
+    <span class="s1">test_r2 </span><span class="s2">= </span><span class="s1">r2_score</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">y_pred_test</span><span class="s2">)</span>
+    <span class="s1">test_mape </span><span class="s2">= </span><span class="s1">mean_absolute_percentage_error</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">y_pred_test</span><span class="s2">) * </span><span class="s4">100</span>
+    
+    <span class="s6"># Accuracy within tolerance ranges</span>
+    <span class="s1">tolerance_1 </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">mean</span><span class="s2">(</span><span class="s1">np</span><span class="s2">.</span><span class="s1">abs</span><span class="s2">(</span><span class="s1">y_test </span><span class="s2">- </span><span class="s1">y_pred_test</span><span class="s2">) &lt;= </span><span class="s4">1</span><span class="s2">) * </span><span class="s4">100</span>
+    <span class="s1">tolerance_2 </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">mean</span><span class="s2">(</span><span class="s1">np</span><span class="s2">.</span><span class="s1">abs</span><span class="s2">(</span><span class="s1">y_test </span><span class="s2">- </span><span class="s1">y_pred_test</span><span class="s2">) &lt;= </span><span class="s4">2</span><span class="s2">) * </span><span class="s4">100</span>
+    <span class="s1">tolerance_3 </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">mean</span><span class="s2">(</span><span class="s1">np</span><span class="s2">.</span><span class="s1">abs</span><span class="s2">(</span><span class="s1">y_test </span><span class="s2">- </span><span class="s1">y_pred_test</span><span class="s2">) &lt;= </span><span class="s4">3</span><span class="s2">) * </span><span class="s4">100</span>
+    
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;</span><span class="s0">\n{</span><span class="s3">'='</span><span class="s2">*</span><span class="s4">80</span><span class="s0">}</span><span class="s3">&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;RIDGE REGRESSION - LENGTH OF STAY PREDICTION (Days)&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;</span><span class="s0">{</span><span class="s3">'='</span><span class="s2">*</span><span class="s4">80</span><span class="s0">}</span><span class="s3">&quot;</span><span class="s2">)</span>
+    
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;</span><span class="s0">\n</span><span class="s3">Training Set Performance:&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  Mean Absolute Error (MAE):  </span><span class="s0">{</span><span class="s1">train_mae</span><span class="s0">:</span><span class="s3">.3f</span><span class="s0">} </span><span class="s3">days&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  Root Mean Squared Error:    </span><span class="s0">{</span><span class="s1">train_rmse</span><span class="s0">:</span><span class="s3">.3f</span><span class="s0">} </span><span class="s3">days&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  R² Score:                   </span><span class="s0">{</span><span class="s1">train_r2</span><span class="s0">:</span><span class="s3">.4f</span><span class="s0">}</span><span class="s3">&quot;</span><span class="s2">)</span>
+    
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;</span><span class="s0">\n</span><span class="s3">Test Set Performance:&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  Mean Absolute Error (MAE):  </span><span class="s0">{</span><span class="s1">test_mae</span><span class="s0">:</span><span class="s3">.3f</span><span class="s0">} </span><span class="s3">days&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  Root Mean Squared Error:    </span><span class="s0">{</span><span class="s1">test_rmse</span><span class="s0">:</span><span class="s3">.3f</span><span class="s0">} </span><span class="s3">days&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  R² Score:                   </span><span class="s0">{</span><span class="s1">test_r2</span><span class="s0">:</span><span class="s3">.4f</span><span class="s0">}</span><span class="s3">&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  Mean Absolute % Error:      </span><span class="s0">{</span><span class="s1">test_mape</span><span class="s0">:</span><span class="s3">.2f</span><span class="s0">}</span><span class="s3">%&quot;</span><span class="s2">)</span>
+    
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;</span><span class="s0">\n</span><span class="s3">Prediction Accuracy (Test Set):&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  Within ±1 day:              </span><span class="s0">{</span><span class="s1">tolerance_1</span><span class="s0">:</span><span class="s3">.2f</span><span class="s0">}</span><span class="s3">%&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  Within ±2 days:             </span><span class="s0">{</span><span class="s1">tolerance_2</span><span class="s0">:</span><span class="s3">.2f</span><span class="s0">}</span><span class="s3">%&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;  Within ±3 days:             </span><span class="s0">{</span><span class="s1">tolerance_3</span><span class="s0">:</span><span class="s3">.2f</span><span class="s0">}</span><span class="s3">%&quot;</span><span class="s2">)</span>
+    
+    <span class="s0">return </span><span class="s1">y_pred_test</span>
+
+<span class="s0">def </span><span class="s1">plot_results</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">y_pred_test</span><span class="s2">):</span>
+    <span class="s5">&quot;&quot;&quot;Generate visualization plots&quot;&quot;&quot;</span>
+    
+    <span class="s1">fig</span><span class="s2">, </span><span class="s1">axes </span><span class="s2">= </span><span class="s1">plt</span><span class="s2">.</span><span class="s1">subplots</span><span class="s2">(</span><span class="s4">2</span><span class="s2">, </span><span class="s4">2</span><span class="s2">, </span><span class="s1">figsize</span><span class="s2">=(</span><span class="s4">14</span><span class="s2">, </span><span class="s4">10</span><span class="s2">))</span>
+    
+    <span class="s6"># 1. Predicted vs Actual</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">scatter</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">y_pred_test</span><span class="s2">, </span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">0.4</span><span class="s2">, </span><span class="s1">s</span><span class="s2">=</span><span class="s4">10</span><span class="s2">)</span>
+    <span class="s1">max_val </span><span class="s2">= </span><span class="s1">max</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">.</span><span class="s1">max</span><span class="s2">(), </span><span class="s1">y_pred_test</span><span class="s2">.</span><span class="s1">max</span><span class="s2">())</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">plot</span><span class="s2">([</span><span class="s4">0</span><span class="s2">, </span><span class="s1">max_val</span><span class="s2">], [</span><span class="s4">0</span><span class="s2">, </span><span class="s1">max_val</span><span class="s2">], </span><span class="s3">'r--'</span><span class="s2">, </span><span class="s1">lw</span><span class="s2">=</span><span class="s4">2</span><span class="s2">, </span><span class="s1">label</span><span class="s2">=</span><span class="s3">'Perfect Prediction'</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">set_xlabel</span><span class="s2">(</span><span class="s3">'Actual LOS (days)'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">11</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">set_ylabel</span><span class="s2">(</span><span class="s3">'Predicted LOS (days)'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">11</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">set_title</span><span class="s2">(</span><span class="s3">'Predicted vs Actual Length of Stay'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">12</span><span class="s2">, </span><span class="s1">fontweight</span><span class="s2">=</span><span class="s3">'bold'</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">legend</span><span class="s2">()</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">grid</span><span class="s2">(</span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">0.3</span><span class="s2">)</span>
+    
+    <span class="s6"># 2. Residuals Plot</span>
+    <span class="s1">residuals </span><span class="s2">= </span><span class="s1">y_test </span><span class="s2">- </span><span class="s1">y_pred_test</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">scatter</span><span class="s2">(</span><span class="s1">y_pred_test</span><span class="s2">, </span><span class="s1">residuals</span><span class="s2">, </span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">0.4</span><span class="s2">, </span><span class="s1">s</span><span class="s2">=</span><span class="s4">10</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">axhline</span><span class="s2">(</span><span class="s1">y</span><span class="s2">=</span><span class="s4">0</span><span class="s2">, </span><span class="s1">color</span><span class="s2">=</span><span class="s3">'r'</span><span class="s2">, </span><span class="s1">linestyle</span><span class="s2">=</span><span class="s3">'--'</span><span class="s2">, </span><span class="s1">lw</span><span class="s2">=</span><span class="s4">2</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">set_xlabel</span><span class="s2">(</span><span class="s3">'Predicted LOS (days)'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">11</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">set_ylabel</span><span class="s2">(</span><span class="s3">'Residuals (Actual - Predicted)'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">11</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">set_title</span><span class="s2">(</span><span class="s3">'Residual Plot'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">12</span><span class="s2">, </span><span class="s1">fontweight</span><span class="s2">=</span><span class="s3">'bold'</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">0</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">grid</span><span class="s2">(</span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">0.3</span><span class="s2">)</span>
+    
+    <span class="s6"># 3. Error Distribution</span>
+    <span class="s1">errors </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">abs</span><span class="s2">(</span><span class="s1">y_test </span><span class="s2">- </span><span class="s1">y_pred_test</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">hist</span><span class="s2">(</span><span class="s1">errors</span><span class="s2">, </span><span class="s1">bins</span><span class="s2">=</span><span class="s4">50</span><span class="s2">, </span><span class="s1">edgecolor</span><span class="s2">=</span><span class="s3">'black'</span><span class="s2">, </span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">0.7</span><span class="s2">, </span><span class="s1">color</span><span class="s2">=</span><span class="s3">'steelblue'</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">axvline</span><span class="s2">(</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">mean</span><span class="s2">(), </span><span class="s1">color</span><span class="s2">=</span><span class="s3">'r'</span><span class="s2">, </span><span class="s1">linestyle</span><span class="s2">=</span><span class="s3">'--'</span><span class="s2">, </span><span class="s1">lw</span><span class="s2">=</span><span class="s4">2</span><span class="s2">, </span>
+                       <span class="s1">label</span><span class="s2">=</span><span class="s3">f'Mean: </span><span class="s0">{</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">mean</span><span class="s2">()</span><span class="s0">:</span><span class="s3">.2f</span><span class="s0">} </span><span class="s3">days'</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">axvline</span><span class="s2">(</span><span class="s1">np</span><span class="s2">.</span><span class="s1">median</span><span class="s2">(</span><span class="s1">errors</span><span class="s2">), </span><span class="s1">color</span><span class="s2">=</span><span class="s3">'g'</span><span class="s2">, </span><span class="s1">linestyle</span><span class="s2">=</span><span class="s3">'--'</span><span class="s2">, </span><span class="s1">lw</span><span class="s2">=</span><span class="s4">2</span><span class="s2">, </span>
+                       <span class="s1">label</span><span class="s2">=</span><span class="s3">f'Median: </span><span class="s0">{</span><span class="s1">np</span><span class="s2">.</span><span class="s1">median</span><span class="s2">(</span><span class="s1">errors</span><span class="s2">)</span><span class="s0">:</span><span class="s3">.2f</span><span class="s0">} </span><span class="s3">days'</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">set_xlabel</span><span class="s2">(</span><span class="s3">'Absolute Error (days)'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">11</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">set_ylabel</span><span class="s2">(</span><span class="s3">'Frequency'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">11</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">set_title</span><span class="s2">(</span><span class="s3">'Distribution of Prediction Errors'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">12</span><span class="s2">, </span><span class="s1">fontweight</span><span class="s2">=</span><span class="s3">'bold'</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">legend</span><span class="s2">()</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">0</span><span class="s2">].</span><span class="s1">grid</span><span class="s2">(</span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">0.3</span><span class="s2">)</span>
+    
+    <span class="s6"># 4. Performance by LOS Range</span>
+    <span class="s1">los_bins </span><span class="s2">= [</span><span class="s4">0</span><span class="s2">, </span><span class="s4">3</span><span class="s2">, </span><span class="s4">7</span><span class="s2">, </span><span class="s4">14</span><span class="s2">, </span><span class="s4">365</span><span class="s2">]</span>
+    <span class="s1">los_labels </span><span class="s2">= [</span><span class="s3">'≤3 days'</span><span class="s2">, </span><span class="s3">'4-7 days'</span><span class="s2">, </span><span class="s3">'8-14 days'</span><span class="s2">, </span><span class="s3">'&gt;14 days'</span><span class="s2">]</span>
+    <span class="s1">y_test_binned </span><span class="s2">= </span><span class="s1">pd</span><span class="s2">.</span><span class="s1">cut</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">bins</span><span class="s2">=</span><span class="s1">los_bins</span><span class="s2">, </span><span class="s1">labels</span><span class="s2">=</span><span class="s1">los_labels</span><span class="s2">)</span>
+    
+    <span class="s1">bin_mae </span><span class="s2">= []</span>
+    <span class="s1">bin_counts </span><span class="s2">= []</span>
+    <span class="s0">for </span><span class="s1">label </span><span class="s0">in </span><span class="s1">los_labels</span><span class="s2">:</span>
+        <span class="s1">mask </span><span class="s2">= </span><span class="s1">y_test_binned </span><span class="s2">== </span><span class="s1">label</span>
+        <span class="s0">if </span><span class="s1">mask</span><span class="s2">.</span><span class="s1">sum</span><span class="s2">() &gt; </span><span class="s4">0</span><span class="s2">:</span>
+            <span class="s1">bin_mae</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">mean_absolute_error</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">[</span><span class="s1">mask</span><span class="s2">], </span><span class="s1">y_pred_test</span><span class="s2">[</span><span class="s1">mask</span><span class="s2">]))</span>
+            <span class="s1">bin_counts</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">mask</span><span class="s2">.</span><span class="s1">sum</span><span class="s2">())</span>
+        <span class="s0">else</span><span class="s2">:</span>
+            <span class="s1">bin_mae</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+            <span class="s1">bin_counts</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+    
+    <span class="s1">bars </span><span class="s2">= </span><span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">bar</span><span class="s2">(</span><span class="s1">los_labels</span><span class="s2">, </span><span class="s1">bin_mae</span><span class="s2">, </span><span class="s1">edgecolor</span><span class="s2">=</span><span class="s3">'black'</span><span class="s2">, </span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">0.7</span><span class="s2">, </span><span class="s1">color</span><span class="s2">=</span><span class="s3">'coral'</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">set_xlabel</span><span class="s2">(</span><span class="s3">'Actual LOS Range'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">11</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">set_ylabel</span><span class="s2">(</span><span class="s3">'Mean Absolute Error (days)'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">11</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">set_title</span><span class="s2">(</span><span class="s3">'Model Performance by LOS Range'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">12</span><span class="s2">, </span><span class="s1">fontweight</span><span class="s2">=</span><span class="s3">'bold'</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">tick_params</span><span class="s2">(</span><span class="s1">axis</span><span class="s2">=</span><span class="s3">'x'</span><span class="s2">, </span><span class="s1">rotation</span><span class="s2">=</span><span class="s4">45</span><span class="s2">)</span>
+    <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">grid</span><span class="s2">(</span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">0.3</span><span class="s2">, </span><span class="s1">axis</span><span class="s2">=</span><span class="s3">'y'</span><span class="s2">)</span>
+    
+    <span class="s6"># Add count labels on bars</span>
+    <span class="s0">for </span><span class="s1">i</span><span class="s2">, (</span><span class="s1">bar</span><span class="s2">, </span><span class="s1">count</span><span class="s2">) </span><span class="s0">in </span><span class="s1">enumerate</span><span class="s2">(</span><span class="s1">zip</span><span class="s2">(</span><span class="s1">bars</span><span class="s2">, </span><span class="s1">bin_counts</span><span class="s2">)):</span>
+        <span class="s1">height </span><span class="s2">= </span><span class="s1">bar</span><span class="s2">.</span><span class="s1">get_height</span><span class="s2">()</span>
+        <span class="s1">axes</span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">1</span><span class="s2">].</span><span class="s1">text</span><span class="s2">(</span><span class="s1">bar</span><span class="s2">.</span><span class="s1">get_x</span><span class="s2">() + </span><span class="s1">bar</span><span class="s2">.</span><span class="s1">get_width</span><span class="s2">()/</span><span class="s4">2.</span><span class="s2">, </span><span class="s1">height</span><span class="s2">,</span>
+                       <span class="s3">f'n=</span><span class="s0">{</span><span class="s1">count</span><span class="s0">}</span><span class="s3">'</span><span class="s2">, </span><span class="s1">ha</span><span class="s2">=</span><span class="s3">'center'</span><span class="s2">, </span><span class="s1">va</span><span class="s2">=</span><span class="s3">'bottom'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">9</span><span class="s2">)</span>
+    
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">tight_layout</span><span class="s2">()</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">savefig</span><span class="s2">(</span><span class="s3">'los_evaluation.png'</span><span class="s2">, </span><span class="s1">dpi</span><span class="s2">=</span><span class="s4">300</span><span class="s2">, </span><span class="s1">bbox_inches</span><span class="s2">=</span><span class="s3">'tight'</span><span class="s2">)</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">close</span><span class="s2">()</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;</span><span class="s0">\n</span><span class="s3">📊 Evaluation plots saved as 'los_evaluation.png'&quot;</span><span class="s2">)</span>
+
+<span class="s0">def </span><span class="s1">plot_feature_importance</span><span class="s2">(</span><span class="s1">model</span><span class="s2">, </span><span class="s1">feature_names</span><span class="s2">, </span><span class="s1">top_n</span><span class="s2">=</span><span class="s4">20</span><span class="s2">):</span>
+    <span class="s5">&quot;&quot;&quot;Plot feature importance from Ridge coefficients&quot;&quot;&quot;</span>
+    
+    <span class="s6"># Get absolute coefficients</span>
+    <span class="s1">importance </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">abs</span><span class="s2">(</span><span class="s1">model</span><span class="s2">.</span><span class="s1">coef_</span><span class="s2">)</span>
+    
+    <span class="s6"># Adjust top_n if we have fewer features</span>
+    <span class="s1">top_n </span><span class="s2">= </span><span class="s1">min</span><span class="s2">(</span><span class="s1">top_n</span><span class="s2">, </span><span class="s1">len</span><span class="s2">(</span><span class="s1">importance</span><span class="s2">))</span>
+    
+    <span class="s6"># Get top features</span>
+    <span class="s1">indices </span><span class="s2">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">argsort</span><span class="s2">(</span><span class="s1">importance</span><span class="s2">)[::-</span><span class="s4">1</span><span class="s2">][:</span><span class="s1">top_n</span><span class="s2">]</span>
+    
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">figure</span><span class="s2">(</span><span class="s1">figsize</span><span class="s2">=(</span><span class="s4">10</span><span class="s2">, </span><span class="s4">8</span><span class="s2">))</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">barh</span><span class="s2">(</span><span class="s1">range</span><span class="s2">(</span><span class="s1">top_n</span><span class="s2">), </span><span class="s1">importance</span><span class="s2">[</span><span class="s1">indices</span><span class="s2">][::-</span><span class="s4">1</span><span class="s2">], </span><span class="s1">color</span><span class="s2">=</span><span class="s3">'teal'</span><span class="s2">, </span><span class="s1">edgecolor</span><span class="s2">=</span><span class="s3">'black'</span><span class="s2">)</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">yticks</span><span class="s2">(</span><span class="s1">range</span><span class="s2">(</span><span class="s1">top_n</span><span class="s2">), [</span><span class="s1">feature_names</span><span class="s2">[</span><span class="s1">i</span><span class="s2">] </span><span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">indices</span><span class="s2">[::-</span><span class="s4">1</span><span class="s2">]], </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">9</span><span class="s2">)</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">xlabel</span><span class="s2">(</span><span class="s3">'Absolute Coefficient Value'</span><span class="s2">, </span><span class="s1">fontsize</span><span class="s2">=</span><span class="s4">11</span><span class="s2">)</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">title</span><span class="s2">(</span><span class="s3">f'Top </span><span class="s0">{</span><span class="s1">top_n</span><span class="s0">} </span><span class="s3">Most Important Features - Ridge Regression'</span><span class="s2">, </span>
+             <span class="s1">fontsize</span><span class="s2">=</span><span class="s4">12</span><span class="s2">, </span><span class="s1">fontweight</span><span class="s2">=</span><span class="s3">'bold'</span><span class="s2">)</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">grid</span><span class="s2">(</span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">0.3</span><span class="s2">, </span><span class="s1">axis</span><span class="s2">=</span><span class="s3">'x'</span><span class="s2">)</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">tight_layout</span><span class="s2">()</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">savefig</span><span class="s2">(</span><span class="s3">'los_feature_importance.png'</span><span class="s2">, </span><span class="s1">dpi</span><span class="s2">=</span><span class="s4">300</span><span class="s2">, </span><span class="s1">bbox_inches</span><span class="s2">=</span><span class="s3">'tight'</span><span class="s2">)</span>
+    <span class="s1">plt</span><span class="s2">.</span><span class="s1">close</span><span class="s2">()</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;📊 Feature importance saved as 'los_feature_importance.png'&quot;</span><span class="s2">)</span>
+
+<span class="s0">def </span><span class="s1">main</span><span class="s2">() </span><span class="s1">-&gt; </span><span class="s0">None</span><span class="s2">:</span>
+    <span class="s1">must_exist</span><span class="s2">(</span><span class="s1">ADMISSIONS_CSV</span><span class="s2">)</span>
+    <span class="s1">must_exist</span><span class="s2">(</span><span class="s1">PATIENTS_CSV</span><span class="s2">)</span>
+    <span class="s1">must_exist</span><span class="s2">(</span><span class="s1">DIAGNOSES_CSV</span><span class="s2">)</span>
+    <span class="s1">must_exist</span><span class="s2">(</span><span class="s1">PROCEDURES_CSV</span><span class="s2">)</span>
+
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;=&quot;</span><span class="s2">*</span><span class="s4">80</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;LENGTH OF STAY PREDICTION - SIMPLE RIDGE REGRESSION MODEL&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;=&quot;</span><span class="s2">*</span><span class="s4">80</span><span class="s2">)</span>
+    
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">[1/5] Loading data...&quot;</span><span class="s2">)</span>
+    <span class="s1">admissions </span><span class="s2">= </span><span class="s1">safe_read_csv</span><span class="s2">(</span>
+        <span class="s1">ADMISSIONS_CSV</span><span class="s2">,</span>
+        <span class="s1">usecols</span><span class="s2">=[</span>
+            <span class="s3">&quot;subject_id&quot;</span><span class="s2">, </span><span class="s3">&quot;hadm_id&quot;</span><span class="s2">, </span><span class="s3">&quot;admittime&quot;</span><span class="s2">, </span><span class="s3">&quot;dischtime&quot;</span><span class="s2">,</span>
+            <span class="s3">&quot;admission_type&quot;</span><span class="s2">, </span><span class="s3">&quot;insurance&quot;</span><span class="s2">, </span><span class="s3">&quot;race&quot;</span><span class="s2">,</span>
+            <span class="s3">&quot;edregtime&quot;</span><span class="s2">, </span><span class="s3">&quot;edouttime&quot;</span><span class="s2">, </span><span class="s3">&quot;hospital_expire_flag&quot;</span><span class="s2">,</span>
+        <span class="s2">],</span>
+        <span class="s1">parse_dates</span><span class="s2">=[</span><span class="s3">&quot;admittime&quot;</span><span class="s2">, </span><span class="s3">&quot;dischtime&quot;</span><span class="s2">, </span><span class="s3">&quot;edregtime&quot;</span><span class="s2">, </span><span class="s3">&quot;edouttime&quot;</span><span class="s2">],</span>
+        <span class="s1">dtype</span><span class="s2">={</span><span class="s3">&quot;subject_id&quot;</span><span class="s2">: </span><span class="s3">&quot;int32&quot;</span><span class="s2">, </span><span class="s3">&quot;hadm_id&quot;</span><span class="s2">: </span><span class="s3">&quot;int32&quot;</span><span class="s2">},</span>
+    <span class="s2">)</span>
+
+    <span class="s1">patients </span><span class="s2">= </span><span class="s1">safe_read_csv</span><span class="s2">(</span>
+        <span class="s1">PATIENTS_CSV</span><span class="s2">,</span>
+        <span class="s1">usecols</span><span class="s2">=[</span><span class="s3">&quot;subject_id&quot;</span><span class="s2">, </span><span class="s3">&quot;gender&quot;</span><span class="s2">, </span><span class="s3">&quot;anchor_age&quot;</span><span class="s2">, </span><span class="s3">&quot;anchor_year&quot;</span><span class="s2">],</span>
+        <span class="s1">dtype</span><span class="s2">={</span><span class="s3">&quot;subject_id&quot;</span><span class="s2">: </span><span class="s3">&quot;int32&quot;</span><span class="s2">, </span><span class="s3">&quot;anchor_age&quot;</span><span class="s2">: </span><span class="s3">&quot;float32&quot;</span><span class="s2">, </span><span class="s3">&quot;anchor_year&quot;</span><span class="s2">: </span><span class="s3">&quot;int32&quot;</span><span class="s2">},</span>
+    <span class="s2">)</span>
+
+    <span class="s1">dx </span><span class="s2">= </span><span class="s1">safe_read_csv</span><span class="s2">(</span>
+        <span class="s1">DIAGNOSES_CSV</span><span class="s2">,</span>
+        <span class="s1">usecols</span><span class="s2">=[</span><span class="s3">&quot;hadm_id&quot;</span><span class="s2">, </span><span class="s3">&quot;icd_code&quot;</span><span class="s2">],</span>
+        <span class="s1">dtype</span><span class="s2">={</span><span class="s3">&quot;hadm_id&quot;</span><span class="s2">: </span><span class="s3">&quot;int32&quot;</span><span class="s2">, </span><span class="s3">&quot;icd_code&quot;</span><span class="s2">: </span><span class="s3">&quot;string&quot;</span><span class="s2">},</span>
+    <span class="s2">)</span>
+
+    <span class="s1">px </span><span class="s2">= </span><span class="s1">safe_read_csv</span><span class="s2">(</span>
+        <span class="s1">PROCEDURES_CSV</span><span class="s2">,</span>
+        <span class="s1">usecols</span><span class="s2">=[</span><span class="s3">&quot;hadm_id&quot;</span><span class="s2">, </span><span class="s3">&quot;icd_code&quot;</span><span class="s2">],</span>
+        <span class="s1">dtype</span><span class="s2">={</span><span class="s3">&quot;hadm_id&quot;</span><span class="s2">: </span><span class="s3">&quot;int32&quot;</span><span class="s2">, </span><span class="s3">&quot;icd_code&quot;</span><span class="s2">: </span><span class="s3">&quot;string&quot;</span><span class="s2">},</span>
+    <span class="s2">)</span>
+
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;   ✓ Loaded </span><span class="s0">{</span><span class="s1">admissions</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s4">0</span><span class="s2">]</span><span class="s0">:</span><span class="s3">,</span><span class="s0">} </span><span class="s3">admissions&quot;</span><span class="s2">)</span>
+
+    <span class="s6"># Calculate Length of Stay</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">[2/5] Processing features...&quot;</span><span class="s2">)</span>
+    <span class="s1">admissions </span><span class="s2">= </span><span class="s1">admissions</span><span class="s2">.</span><span class="s1">dropna</span><span class="s2">(</span><span class="s1">subset</span><span class="s2">=[</span><span class="s3">&quot;dischtime&quot;</span><span class="s2">, </span><span class="s3">&quot;admittime&quot;</span><span class="s2">])</span>
+    <span class="s1">admissions</span><span class="s2">[</span><span class="s3">&quot;LOS_DAYS&quot;</span><span class="s2">] = (</span>
+        <span class="s2">(</span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">&quot;dischtime&quot;</span><span class="s2">] - </span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">&quot;admittime&quot;</span><span class="s2">]).</span><span class="s1">dt</span><span class="s2">.</span><span class="s1">total_seconds</span><span class="s2">() / </span><span class="s4">86400</span>
+    <span class="s2">).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;float32&quot;</span><span class="s2">)</span>
+    
+    <span class="s6"># Remove outliers</span>
+    <span class="s1">admissions </span><span class="s2">= </span><span class="s1">admissions</span><span class="s2">[(</span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">&quot;LOS_DAYS&quot;</span><span class="s2">] &gt; </span><span class="s4">0</span><span class="s2">) &amp; (</span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">&quot;LOS_DAYS&quot;</span><span class="s2">] &lt;= </span><span class="s4">365</span><span class="s2">)]</span>
+    
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;   ✓ LOS range: </span><span class="s0">{</span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">'LOS_DAYS'</span><span class="s2">].</span><span class="s1">min</span><span class="s2">()</span><span class="s0">:</span><span class="s3">.1f</span><span class="s0">} </span><span class="s3">- </span><span class="s0">{</span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">'LOS_DAYS'</span><span class="s2">].</span><span class="s1">max</span><span class="s2">()</span><span class="s0">:</span><span class="s3">.1f</span><span class="s0">} </span><span class="s3">days&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;   ✓ Mean LOS: </span><span class="s0">{</span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">'LOS_DAYS'</span><span class="s2">].</span><span class="s1">mean</span><span class="s2">()</span><span class="s0">:</span><span class="s3">.2f</span><span class="s0">} </span><span class="s3">days, Median: </span><span class="s0">{</span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">'LOS_DAYS'</span><span class="s2">].</span><span class="s1">median</span><span class="s2">()</span><span class="s0">:</span><span class="s3">.2f</span><span class="s0">} </span><span class="s3">days&quot;</span><span class="s2">)</span>
+
+    <span class="s6"># Simple feature engineering</span>
+    <span class="s1">admissions</span><span class="s2">[</span><span class="s3">&quot;ADMIT_HOUR&quot;</span><span class="s2">] = </span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">&quot;admittime&quot;</span><span class="s2">].</span><span class="s1">dt</span><span class="s2">.</span><span class="s1">hour</span><span class="s2">.</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int32&quot;</span><span class="s2">)</span>
+    <span class="s1">admissions</span><span class="s2">[</span><span class="s3">&quot;ADMIT_DAY_OF_WEEK&quot;</span><span class="s2">] = </span><span class="s1">admissions</span><span class="s2">[</span><span class="s3">&quot;admittime&quot;</span><span class="s2">].</span><span class="s1">dt</span><span class="s2">.</span><span class="s1">dayofweek</span><span class="s2">.</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int32&quot;</span><span class="s2">)</span>
+    
+    <span class="s1">base </span><span class="s2">= </span><span class="s1">admissions</span><span class="s2">.</span><span class="s1">merge</span><span class="s2">(</span><span class="s1">patients</span><span class="s2">, </span><span class="s1">on</span><span class="s2">=</span><span class="s3">&quot;subject_id&quot;</span><span class="s2">, </span><span class="s1">how</span><span class="s2">=</span><span class="s3">&quot;left&quot;</span><span class="s2">)</span>
+    
+    <span class="s6"># Age</span>
+    <span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;ADMIT_YEAR&quot;</span><span class="s2">] = </span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;admittime&quot;</span><span class="s2">].</span><span class="s1">dt</span><span class="s2">.</span><span class="s1">year</span><span class="s2">.</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int32&quot;</span><span class="s2">)</span>
+    <span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;AGE&quot;</span><span class="s2">] = (</span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;anchor_age&quot;</span><span class="s2">] + (</span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;ADMIT_YEAR&quot;</span><span class="s2">] - </span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;anchor_year&quot;</span><span class="s2">])).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;float32&quot;</span><span class="s2">)</span>
+    
+    <span class="s6"># ED visit features</span>
+    <span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;ED_LOS_HOURS&quot;</span><span class="s2">] = ((</span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;edouttime&quot;</span><span class="s2">] - </span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;edregtime&quot;</span><span class="s2">]).</span><span class="s1">dt</span><span class="s2">.</span><span class="s1">total_seconds</span><span class="s2">() / </span><span class="s4">3600</span><span class="s2">).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;float32&quot;</span><span class="s2">)</span>
+    <span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;HAS_ED_VISIT&quot;</span><span class="s2">] = </span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;edregtime&quot;</span><span class="s2">].</span><span class="s1">notna</span><span class="s2">().</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int8&quot;</span><span class="s2">)</span>
+    
+    <span class="s6"># Simple flags</span>
+    <span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;IS_EMERGENCY&quot;</span><span class="s2">] = (</span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;admission_type&quot;</span><span class="s2">] == </span><span class="s3">&quot;EMERGENCY&quot;</span><span class="s2">).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int8&quot;</span><span class="s2">)</span>
+    <span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;DIED_IN_HOSPITAL&quot;</span><span class="s2">] = </span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;hospital_expire_flag&quot;</span><span class="s2">].</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int8&quot;</span><span class="s2">)</span>
+    <span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;IS_MALE&quot;</span><span class="s2">] = (</span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;gender&quot;</span><span class="s2">] == </span><span class="s3">&quot;M&quot;</span><span class="s2">).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int8&quot;</span><span class="s2">)</span>
+    
+    <span class="s6"># Insurance encoding (simple binary for major categories)</span>
+    <span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;HAS_MEDICARE&quot;</span><span class="s2">] = (</span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;insurance&quot;</span><span class="s2">] == </span><span class="s3">&quot;Medicare&quot;</span><span class="s2">).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int8&quot;</span><span class="s2">)</span>
+    <span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;HAS_MEDICAID&quot;</span><span class="s2">] = (</span><span class="s1">base</span><span class="s2">[</span><span class="s3">&quot;insurance&quot;</span><span class="s2">] == </span><span class="s3">&quot;Medicaid&quot;</span><span class="s2">).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int8&quot;</span><span class="s2">)</span>
+    
+    <span class="s6"># Count features (fast aggregation)</span>
+    <span class="s1">num_conditions </span><span class="s2">= </span><span class="s1">dx</span><span class="s2">.</span><span class="s1">groupby</span><span class="s2">(</span><span class="s3">&quot;hadm_id&quot;</span><span class="s2">).</span><span class="s1">size</span><span class="s2">().</span><span class="s1">rename</span><span class="s2">(</span><span class="s3">&quot;NUM_CONDITIONS&quot;</span><span class="s2">)</span>
+    <span class="s1">num_procedures </span><span class="s2">= </span><span class="s1">px</span><span class="s2">.</span><span class="s1">groupby</span><span class="s2">(</span><span class="s3">&quot;hadm_id&quot;</span><span class="s2">).</span><span class="s1">size</span><span class="s2">().</span><span class="s1">rename</span><span class="s2">(</span><span class="s3">&quot;NUM_PROCEDURES&quot;</span><span class="s2">)</span>
+    
+    <span class="s6"># Merge</span>
+    <span class="s1">feat </span><span class="s2">= </span><span class="s1">base</span><span class="s2">.</span><span class="s1">set_index</span><span class="s2">(</span><span class="s3">&quot;hadm_id&quot;</span><span class="s2">).</span><span class="s1">join</span><span class="s2">(</span><span class="s1">num_conditions</span><span class="s2">, </span><span class="s1">how</span><span class="s2">=</span><span class="s3">&quot;left&quot;</span><span class="s2">).</span><span class="s1">join</span><span class="s2">(</span><span class="s1">num_procedures</span><span class="s2">, </span><span class="s1">how</span><span class="s2">=</span><span class="s3">&quot;left&quot;</span><span class="s2">)</span>
+    <span class="s1">feat </span><span class="s2">= </span><span class="s1">feat</span><span class="s2">.</span><span class="s1">reset_index</span><span class="s2">()</span>
+    
+    <span class="s6"># Fill missing</span>
+    <span class="s1">feat</span><span class="s2">[</span><span class="s3">&quot;NUM_CONDITIONS&quot;</span><span class="s2">] = </span><span class="s1">feat</span><span class="s2">[</span><span class="s3">&quot;NUM_CONDITIONS&quot;</span><span class="s2">].</span><span class="s1">fillna</span><span class="s2">(</span><span class="s4">0</span><span class="s2">).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int32&quot;</span><span class="s2">)</span>
+    <span class="s1">feat</span><span class="s2">[</span><span class="s3">&quot;NUM_PROCEDURES&quot;</span><span class="s2">] = </span><span class="s1">feat</span><span class="s2">[</span><span class="s3">&quot;NUM_PROCEDURES&quot;</span><span class="s2">].</span><span class="s1">fillna</span><span class="s2">(</span><span class="s4">0</span><span class="s2">).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;int32&quot;</span><span class="s2">)</span>
+    <span class="s1">feat</span><span class="s2">[</span><span class="s3">&quot;ED_LOS_HOURS&quot;</span><span class="s2">] = </span><span class="s1">feat</span><span class="s2">[</span><span class="s3">&quot;ED_LOS_HOURS&quot;</span><span class="s2">].</span><span class="s1">fillna</span><span class="s2">(</span><span class="s4">0</span><span class="s2">).</span><span class="s1">astype</span><span class="s2">(</span><span class="s3">&quot;float32&quot;</span><span class="s2">)</span>
+    
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;   ✓ Created </span><span class="s0">{</span><span class="s1">feat</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s4">1</span><span class="s2">]</span><span class="s0">} </span><span class="s3">features&quot;</span><span class="s2">)</span>
+
+    <span class="s6"># Select features for model</span>
+    <span class="s1">feature_cols </span><span class="s2">= [</span>
+        <span class="s3">&quot;AGE&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;IS_MALE&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;HAS_ED_VISIT&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;ED_LOS_HOURS&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;IS_EMERGENCY&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;DIED_IN_HOSPITAL&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;HAS_MEDICARE&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;HAS_MEDICAID&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;NUM_CONDITIONS&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;NUM_PROCEDURES&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;ADMIT_HOUR&quot;</span><span class="s2">,</span>
+        <span class="s3">&quot;ADMIT_DAY_OF_WEEK&quot;</span><span class="s2">,</span>
+    <span class="s2">]</span>
+    
+    <span class="s6"># Prepare data</span>
+    <span class="s1">data </span><span class="s2">= </span><span class="s1">feat</span><span class="s2">[</span><span class="s1">feature_cols </span><span class="s2">+ [</span><span class="s3">&quot;LOS_DAYS&quot;</span><span class="s2">]].</span><span class="s1">dropna</span><span class="s2">()</span>
+    <span class="s1">X </span><span class="s2">= </span><span class="s1">data</span><span class="s2">[</span><span class="s1">feature_cols</span><span class="s2">].</span><span class="s1">values</span>
+    <span class="s1">y </span><span class="s2">= </span><span class="s1">data</span><span class="s2">[</span><span class="s3">&quot;LOS_DAYS&quot;</span><span class="s2">].</span><span class="s1">values</span>
+    
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;   ✓ Final dataset: </span><span class="s0">{</span><span class="s1">X</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s4">0</span><span class="s2">]</span><span class="s0">:</span><span class="s3">,</span><span class="s0">} </span><span class="s3">samples with </span><span class="s0">{</span><span class="s1">X</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s4">1</span><span class="s2">]</span><span class="s0">} </span><span class="s3">features&quot;</span><span class="s2">)</span>
+
+    <span class="s6"># Train/test split</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">[3/5] Splitting data...&quot;</span><span class="s2">)</span>
+    <span class="s1">X_train</span><span class="s2">, </span><span class="s1">X_test</span><span class="s2">, </span><span class="s1">y_train</span><span class="s2">, </span><span class="s1">y_test </span><span class="s2">= </span><span class="s1">train_test_split</span><span class="s2">(</span>
+        <span class="s1">X</span><span class="s2">, </span><span class="s1">y</span><span class="s2">, </span><span class="s1">test_size</span><span class="s2">=</span><span class="s4">0.2</span><span class="s2">, </span><span class="s1">random_state</span><span class="s2">=</span><span class="s1">RANDOM_STATE</span>
+    <span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;   ✓ Training: </span><span class="s0">{</span><span class="s1">X_train</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s4">0</span><span class="s2">]</span><span class="s0">:</span><span class="s3">,</span><span class="s0">} </span><span class="s3">samples&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;   ✓ Testing:  </span><span class="s0">{</span><span class="s1">X_test</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s4">0</span><span class="s2">]</span><span class="s0">:</span><span class="s3">,</span><span class="s0">} </span><span class="s3">samples&quot;</span><span class="s2">)</span>
+
+    <span class="s6"># Scale features</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">[4/5] Training Ridge Regression model...&quot;</span><span class="s2">)</span>
+    <span class="s1">scaler </span><span class="s2">= </span><span class="s1">StandardScaler</span><span class="s2">()</span>
+    <span class="s1">X_train_scaled </span><span class="s2">= </span><span class="s1">scaler</span><span class="s2">.</span><span class="s1">fit_transform</span><span class="s2">(</span><span class="s1">X_train</span><span class="s2">)</span>
+    <span class="s1">X_test_scaled </span><span class="s2">= </span><span class="s1">scaler</span><span class="s2">.</span><span class="s1">transform</span><span class="s2">(</span><span class="s1">X_test</span><span class="s2">)</span>
+    
+    <span class="s6"># Train Ridge Regression (simple but effective)</span>
+    <span class="s1">model </span><span class="s2">= </span><span class="s1">Ridge</span><span class="s2">(</span><span class="s1">alpha</span><span class="s2">=</span><span class="s4">1.0</span><span class="s2">, </span><span class="s1">random_state</span><span class="s2">=</span><span class="s1">RANDOM_STATE</span><span class="s2">)</span>
+    <span class="s1">model</span><span class="s2">.</span><span class="s1">fit</span><span class="s2">(</span><span class="s1">X_train_scaled</span><span class="s2">, </span><span class="s1">y_train</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;   ✓ Model trained successfully!&quot;</span><span class="s2">)</span>
+    
+    <span class="s6"># Cross-validation</span>
+    <span class="s1">cv_scores </span><span class="s2">= </span><span class="s1">cross_val_score</span><span class="s2">(</span><span class="s1">model</span><span class="s2">, </span><span class="s1">X_train_scaled</span><span class="s2">, </span><span class="s1">y_train</span><span class="s2">, </span><span class="s1">cv</span><span class="s2">=</span><span class="s4">5</span><span class="s2">, </span>
+                                <span class="s1">scoring</span><span class="s2">=</span><span class="s3">'neg_mean_absolute_error'</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;   ✓ 5-fold CV MAE: </span><span class="s0">{</span><span class="s2">-</span><span class="s1">cv_scores</span><span class="s2">.</span><span class="s1">mean</span><span class="s2">()</span><span class="s0">:</span><span class="s3">.3f</span><span class="s0">} </span><span class="s3">(+/- </span><span class="s0">{</span><span class="s1">cv_scores</span><span class="s2">.</span><span class="s1">std</span><span class="s2">()</span><span class="s0">:</span><span class="s3">.3f</span><span class="s0">}</span><span class="s3">) days&quot;</span><span class="s2">)</span>
+    
+    <span class="s6"># Predictions</span>
+    <span class="s1">y_pred_train </span><span class="s2">= </span><span class="s1">model</span><span class="s2">.</span><span class="s1">predict</span><span class="s2">(</span><span class="s1">X_train_scaled</span><span class="s2">)</span>
+    <span class="s1">y_pred_test </span><span class="s2">= </span><span class="s1">model</span><span class="s2">.</span><span class="s1">predict</span><span class="s2">(</span><span class="s1">X_test_scaled</span><span class="s2">)</span>
+    
+    <span class="s6"># Evaluate</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">[5/5] Evaluating model...&quot;</span><span class="s2">)</span>
+    <span class="s1">y_pred_test </span><span class="s2">= </span><span class="s1">evaluate_model</span><span class="s2">(</span><span class="s1">y_train</span><span class="s2">, </span><span class="s1">y_pred_train</span><span class="s2">, </span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">y_pred_test</span><span class="s2">)</span>
+    
+    <span class="s6"># Generate visualizations</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">&quot; </span><span class="s2">+ </span><span class="s3">&quot;=&quot;</span><span class="s2">*</span><span class="s4">80</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;GENERATING VISUALIZATIONS&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;=&quot;</span><span class="s2">*</span><span class="s4">80</span><span class="s2">)</span>
+    <span class="s1">plot_results</span><span class="s2">(</span><span class="s1">y_test</span><span class="s2">, </span><span class="s1">y_pred_test</span><span class="s2">)</span>
+    <span class="s1">plot_feature_importance</span><span class="s2">(</span><span class="s1">model</span><span class="s2">, </span><span class="s1">feature_cols</span><span class="s2">)</span>
+    
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">&quot; </span><span class="s2">+ </span><span class="s3">&quot;=&quot;</span><span class="s2">*</span><span class="s4">80</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;✅ ANALYSIS COMPLETE!&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;=&quot;</span><span class="s2">*</span><span class="s4">80</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">Output files:&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;  • los_evaluation.png         - Model performance visualizations&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;  • los_feature_importance.png - Feature importance chart&quot;</span><span class="s2">)</span>
+    <span class="s1">print</span><span class="s2">()</span>
+
+<span class="s0">if </span><span class="s1">__name__ </span><span class="s2">== </span><span class="s3">&quot;__main__&quot;</span><span class="s2">:</span>
+    <span class="s1">main</span><span class="s2">()</span>
+</pre>
+</body>
+</html>

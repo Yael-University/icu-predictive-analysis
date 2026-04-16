@@ -1,0 +1,64 @@
+Loaded shapes:
+  admissions: (546028, 14)
+  patients: (364627, 4)
+  diagnoses: (6364488, 2)
+  procedures: (859655, 2)
+  prescriptions: (20292611, 2)
+
+30-Day Readmission Statistics:
+Total admissions with follow-up: 316031
+Readmissions: 104302
+Readmission rate: 33.00%
+
+Dataset ready:
+  X: (316031, 37) y: (316031,)
+  Readmission rate: 33.00%
+  Class distribution:
+READMITTED_30D
+0    211729
+1    104302
+Name: count, dtype: int64
+
+Training 30-day readmission risk model...
+
+================================================================================
+30-Day Readmission Risk Prediction Results
+================================================================================
+Accuracy: 0.6943
+
+Classification Report:
+                precision    recall  f1-score   support
+
+Not Readmitted       0.71      0.92      0.80     42346
+    Readmitted       0.60      0.23      0.33     20861
+
+      accuracy                           0.69     63207
+     macro avg       0.65      0.58      0.57     63207
+  weighted avg       0.67      0.69      0.65     63207
+
+
+Confusion Matrix:
+[[39165  3181]
+ [16139  4722]]
+
+Confusion matrix saved as readmission_confusion_matrix.png
+ROC curve saved as readmission_roc_curve.png (AUC: 0.683)
+Risk distribution saved as readmission_risk_distribution.png
+Feature importance plot saved as readmission_feature_importance.png
+
+Top 10 Most Important Features:
+1. DAYS_SINCE_LAST_ADMISSION: 0.2770
+2. PREVIOUS_ADMISSIONS: 0.1515
+3. NUM_MEDICATIONS: 0.0920
+4. LOS_DAYS: 0.0917
+5. AGE: 0.0389
+6. ICD_F_COUNT: 0.0270
+7. DISCHARGE_LOCATION_PSYCH FACILITY: 0.0229
+8. NUM_UNIQUE_MEDICATIONS: 0.0204
+9. ED_LOS_HOURS: 0.0177
+10. admission_type_URGENT: 0.0167
+
+--- High-Risk Analysis (threshold = 0.5) ---
+Patients flagged as high-risk: 7903
+Actual readmissions in high-risk group: 4722
+Precision in high-risk group: 59.75%
