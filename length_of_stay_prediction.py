@@ -1,13 +1,12 @@
 import os
+import joblib
 import pandas as pd
 import numpy as np
 import warnings
 warnings.filterwarnings('ignore')
 
 from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.preprocessing import StandardScaler
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import Ridge
+from xgboost import XGBRegressor
 from sklearn.metrics import (
     mean_absolute_error,
     mean_squared_error,
@@ -65,7 +64,7 @@ def evaluate_model(y_train, y_pred_train, y_test, y_pred_test):
     tolerance_3 = np.mean(np.abs(y_test - y_pred_test) <= 3) * 100
     
     print(f"\n{'='*80}")
-    print(f"RIDGE REGRESSION - LENGTH OF STAY PREDICTION (Days)")
+    print(f"XGBOOST REGRESSOR - LENGTH OF STAY PREDICTION (Days)")
     print(f"{'='*80}")
     
     print(f"\nTraining Set Performance:")
@@ -158,10 +157,11 @@ def plot_results(y_test, y_pred_test):
     print(f"\n📊 Evaluation plots saved as 'los_evaluation.png'")
 
 def plot_feature_importance(model, feature_names, top_n=20):
-    """Plot feature importance from Ridge coefficients"""
-    
-    # Get absolute coefficients
-    importance = np.abs(model.coef_)
+    """Plot feature importance (works for XGBoost and Ridge)."""
+    if hasattr(model, "feature_importances_"):
+        importance = model.feature_importances_
+    else:
+        importance = np.abs(model.coef_)
     
     # Adjust top_n if we have fewer features
     top_n = min(top_n, len(importance))
@@ -173,7 +173,7 @@ def plot_feature_importance(model, feature_names, top_n=20):
     plt.barh(range(top_n), importance[indices][::-1], color='teal', edgecolor='black')
     plt.yticks(range(top_n), [feature_names[i] for i in indices[::-1]], fontsize=9)
     plt.xlabel('Absolute Coefficient Value', fontsize=11)
-    plt.title(f'Top {top_n} Most Important Features - Ridge Regression', 
+    plt.title(f'Top {top_n} Most Important Features - XGBoost Regressor',
              fontsize=12, fontweight='bold')
     plt.grid(alpha=0.3, axis='x')
     plt.tight_layout()
@@ -281,7 +281,9 @@ def main() -> None:
         "HAS_ED_VISIT",
         "ED_LOS_HOURS",
         "IS_EMERGENCY",
-        "DIED_IN_HOSPITAL",
+        # DIED_IN_HOSPITAL removed — it's a future outcome, not known at admission time.
+        # Including it would be data leakage: the model learns "if dead → long stay"
+        # but you can't use that signal to predict LOS before it happens.
         "HAS_MEDICARE",
         "HAS_MEDICAID",
         "NUM_CONDITIONS",
@@ -297,37 +299,57 @@ def main() -> None:
     
     print(f"   ✓ Final dataset: {X.shape[0]:,} samples with {X.shape[1]} features")
 
+    # Log-transform the target before splitting.
+    # LOS is right-skewed (most stays are short, a few are very long).
+    # Ridge/linear models assume normally distributed residuals and will be
+    # dominated by long-stay outliers. log1p compresses those outliers so the
+    # model can fit the bulk of cases accurately. We expm1 the predictions
+    # back to days after inference.
+    y_log = np.log1p(y)
+
     # Train/test split
     print("\n[3/5] Splitting data...")
-    X_train, X_test, y_train, y_test = train_test_split(
+    X_train, X_test, y_train_log, y_test_log = train_test_split(
+        X, y_log, test_size=0.2, random_state=RANDOM_STATE
+    )
+    # Keep original-scale labels for evaluation
+    _, _, y_train_orig, y_test = train_test_split(
         X, y, test_size=0.2, random_state=RANDOM_STATE
     )
     print(f"   ✓ Training: {X_train.shape[0]:,} samples")
     print(f"   ✓ Testing:  {X_test.shape[0]:,} samples")
 
-    # Scale features
-    print("\n[4/5] Training Ridge Regression model...")
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    
-    # Train Ridge Regression (simple but effective)
-    model = Ridge(alpha=1.0, random_state=RANDOM_STATE)
-    model.fit(X_train_scaled, y_train)
+    print("\n[4/5] Training XGBoost Regressor model...")
+    model = XGBRegressor(
+        n_estimators=300,
+        learning_rate=0.05,
+        max_depth=5,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=RANDOM_STATE,
+        verbosity=0,
+    )
+    model.fit(X_train, y_train_log)
     print("   ✓ Model trained successfully!")
-    
-    # Cross-validation
-    cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5, 
+
+    # Save model so inference can run without retraining.
+    # Predictions need np.expm1() applied: np.expm1(model.predict(X_new))
+    os.makedirs("models", exist_ok=True)
+    joblib.dump(model, "models/los_model.pkl")
+    print("   ✓ Model saved to models/los_model.pkl")
+
+    # Cross-validation (in log space — lower is still better)
+    cv_scores = cross_val_score(model, X_train, y_train_log, cv=5,
                                 scoring='neg_mean_absolute_error')
-    print(f"   ✓ 5-fold CV MAE: {-cv_scores.mean():.3f} (+/- {cv_scores.std():.3f}) days")
-    
-    # Predictions
-    y_pred_train = model.predict(X_train_scaled)
-    y_pred_test = model.predict(X_test_scaled)
+    print(f"   ✓ 5-fold CV MAE (log scale): {-cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
+
+    # Predictions — inverse-transform from log space back to days
+    y_pred_train = np.expm1(model.predict(X_train))
+    y_pred_test = np.expm1(model.predict(X_test))
     
     # Evaluate
     print("\n[5/5] Evaluating model...")
-    y_pred_test = evaluate_model(y_train, y_pred_train, y_test, y_pred_test)
+    y_pred_test = evaluate_model(y_train_orig, y_pred_train, y_test, y_pred_test)
     
     # Generate visualizations
     print("\n" + "="*80)

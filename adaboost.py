@@ -57,22 +57,45 @@ key_vitals = [
     "Heart rate"
 ]
 
-obs_filtered = observations[observations["DESCRIPTION"].isin(key_vitals)]
+obs_filtered = observations[observations["DESCRIPTION"].isin(key_vitals)].copy()
+obs_filtered["VALUE"] = pd.to_numeric(obs_filtered["VALUE"], errors="coerce")
 
+obs_sorted = obs_filtered.sort_values("DATE")
+
+# Last snapshot per vital (what the patient looks like most recently)
 obs_latest = (
-    obs_filtered.sort_values("DATE")
-    .groupby(["PATIENT", "DESCRIPTION"])
+    obs_sorted.groupby(["PATIENT", "DESCRIPTION"])
     .last()
     .reset_index()
 )
-
 obs_wide = (
     obs_latest.pivot(index="PATIENT", columns="DESCRIPTION", values="VALUE")
     .reset_index()
 )
 obs_wide.columns.name = None
 
-print("Vitals (wide):")
+# First snapshot per vital (earliest recorded measurement)
+obs_first = (
+    obs_sorted.groupby(["PATIENT", "DESCRIPTION"])
+    .first()
+    .reset_index()
+)
+obs_first_wide = (
+    obs_first.pivot(index="PATIENT", columns="DESCRIPTION", values="VALUE")
+    .reset_index()
+)
+obs_first_wide.columns.name = None
+
+# Delta features: last minus first for each vital.
+# A downward trend in blood pressure or rising heart rate is more
+# predictive of mortality than the absolute value alone.
+for vital in key_vitals:
+    if vital in obs_wide.columns and vital in obs_first_wide.columns:
+        obs_wide[f"DELTA_{vital}"] = (
+            obs_wide[vital].values - obs_first_wide.set_index("PATIENT").reindex(obs_wide["PATIENT"])[vital].values
+        )
+
+print("Vitals (wide with deltas):")
 print(obs_wide.head())
 
 # --------------------- MERGE BASE TABLE ------------------------
@@ -170,7 +193,8 @@ if not medications.empty:
 
 # --------------------- FEATURE LISTS ---------------------------
 
-baseline_features = ["AGE", "GENDER", "RACE"] + key_vitals
+delta_vitals = [f"DELTA_{v}" for v in key_vitals if f"DELTA_{v}" in data.columns]
+baseline_features = ["AGE", "GENDER", "RACE"] + key_vitals + delta_vitals
 
 extra_numeric_features = []
 for col in [
@@ -222,7 +246,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 numeric_features = [col for col in all_features if col not in ["GENDER", "RACE"]]
-categorical_features = [col for col in all_features if col in ["GENDER", "RACE"]]
+categorical_features = ["GENDER", "RACE"]
 
 numeric_transformer = Pipeline(steps=[
     ("imputer", SimpleImputer(strategy="mean")),

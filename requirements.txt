@@ -16,3 +16,4 @@ botocore>=1.34.0
 # Misc
 numpy>=1.26.0
 tqdm>=4.66.0
+shap>=0.45.0

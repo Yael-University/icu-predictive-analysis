@@ -1,0 +1,29 @@
+{
+  "patient": {
+    "demographics": {
+      "age": 67,
+      "gender": "M",
+      "race": "WHITE",
+      "language": "ENGLISH"
+    },
+    "admission": {
+      "admission_type": "EMERGENCY",
+      "admission_location": "EMERGENCY ROOM",
+      "insurance": "Medicare",
+      "marital_status": "MARRIED",
+      "has_ed_visit": true,
+      "ed_los_hours": 4.5,
+
+      "admit_hour": 14,
+      "admit_day_of_week": 2,
+
+      "los_days": 5.0,
+      "previous_admissions": 2,
+      "days_since_last_admission": 45.0,
+      "discharge_location": "HOME"
+    },
+    "diagnoses": ["I10", "E11.9", "J18.9"],
+    "procedures": ["5A1955Z", "0BH17EZ"],
+    "medications": ["aspirin", "metformin", "ceftriaxone"]
+  }
+}

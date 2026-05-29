@@ -1,11 +1,33 @@
-synthea/*
-!synthea/output/
-synthea/output/*
-!synthea/output/csv/
-!synthea/output/csv/*.csv
+# Secrets
+.env
+.env.*
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Confidential patient data (MIMIC dataset — data use agreement restricts sharing)
+MIMIC/
 *.csv
+aws_lambda_mortality_api_bundle/data/
+
+# Logs
 *.log
-package
-model_lambda.zip
-python
-layer.zip
+
+# Build artifacts
+dist/
+build/
+
+# Claude Code memory (local tooling only)
+.claude/

@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patient Risk Prediction</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:       #1e40af;
+      --primary-hover: #1d4ed8;
+      --primary-light: #dbeafe;
+      --gray-50:  #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-400: #9ca3af;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-900: #111827;
+      --green-bg:  #ecfdf5; --green-text:  #065f46; --green-border:  #34d399;
+      --amber-bg:  #fffbeb; --amber-text:  #92400e; --amber-border:  #fbbf24;
+      --red-bg:    #fef2f2; --red-text:    #991b1b; --red-border:    #f87171;
+      --blue-bg:   #eff6ff; --blue-text:   #1e40af; --blue-border:   #60a5fa;
+      --shap-pos: rgba(220, 38, 38, 0.72);
+      --shap-neg: rgba(37, 99, 235, 0.72);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--gray-100);
+      color: var(--gray-900);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    header span { font-size: 13px; opacity: 0.75; margin-left: auto; }
+
+    /* ── Layout ── */
+    .container { max-width: 1380px; margin: 0 auto; padding: 24px 20px; }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px 22px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gray-700);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title .badge {
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--primary-light);
+      color: var(--primary);
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    /* ── Config bar ── */
+    .config-card summary {
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gray-700);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .config-card summary::after { content: '▸'; margin-left: auto; transition: transform 0.2s; }
+    .config-card[open] summary::after { transform: rotate(90deg); }
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 12px;
+      margin-top: 14px;
+      align-items: end;
+    }
+    @media (max-width: 700px) { .config-grid { grid-template-columns: 1fr; } }
+
+    /* ── Two-column main layout ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 420px) 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+    .form-column { position: sticky; top: 20px; }
+
+    /* ── Form elements ── */
+    .form-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--gray-400);
+      margin-bottom: 10px;
+    }
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .field-grid.cols-1 { grid-template-columns: 1fr; }
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+    .field-group.span-2 { grid-column: span 2; }
+
+    label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--gray-700);
+    }
+    input[type="text"],
+    input[type="number"],
+    input[type="url"],
+    input[type="password"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid var(--gray-200);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--gray-900);
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+    }
+    textarea { resize: vertical; min-height: 70px; }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gray-700);
+      cursor: pointer;
+      margin: 8px 0;
+    }
+    input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+
+    .hint { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 9px 18px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s, opacity 0.15s;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--gray-100);
+      color: var(--gray-700);
+      border: 1px solid var(--gray-200);
+    }
+    .btn-secondary:hover { background: var(--gray-200); }
+    .btn-full { width: 100%; padding: 11px 18px; font-size: 14px; }
+
+    .action-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    /* ── Risk cards ── */
+    .risk-cards-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 600px) { .risk-cards-row { grid-template-columns: 1fr; } }
+
+    .risk-card {
+      text-align: center;
+      padding: 20px 16px;
+      border-radius: 12px;
+      border-left: 4px solid transparent;
+    }
+    .risk-card .rc-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.7;
+      margin-bottom: 6px;
+    }
+    .risk-card .rc-value {
+      font-size: 38px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .risk-badge {
+      display: inline-block;
+      padding: 3px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .risk-HIGH  { background: var(--red-bg);   border-left-color: #ef4444; }
+    .risk-HIGH  .rc-value, .risk-HIGH  .rc-label { color: var(--red-text);   }
+    .risk-HIGH  .risk-badge { background: #fee2e2; color: var(--red-text);   }
+    .risk-MODERATE { background: var(--amber-bg); border-left-color: #f59e0b; }
+    .risk-MODERATE .rc-value, .risk-MODERATE .rc-label { color: var(--amber-text); }
+    .risk-MODERATE .risk-badge { background: #fef3c7; color: var(--amber-text); }
+    .risk-LOW   { background: var(--green-bg); border-left-color: #10b981; }
+    .risk-LOW   .rc-value, .risk-LOW   .rc-label { color: var(--green-text); }
+    .risk-LOW   .risk-badge { background: #d1fae5; color: var(--green-text); }
+    .risk-UNKNOWN { background: var(--gray-50); border-left-color: var(--gray-200); }
+    .risk-UNKNOWN .rc-value, .risk-UNKNOWN .rc-label { color: var(--gray-600); }
+
+    /* LOS card uses blue */
+    .los-card { background: var(--blue-bg); border-left-color: var(--blue-border); }
+    .los-card .rc-value, .los-card .rc-label { color: var(--blue-text); }
+    .los-badge { background: var(--primary-light); color: var(--primary); }
+
+    /* ── Model votes ── */
+    .votes-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .vote-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--gray-100);
+      border: 1px solid var(--gray-200);
+    }
+    .vote-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .vote-dot-yes { background: #ef4444; }
+    .vote-dot-no  { background: #10b981; }
+
+    /* ── SHAP charts ── */
+    .shap-legend {
+      display: flex;
+      gap: 18px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      color: var(--gray-600);
+    }
+    .shap-legend span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .shap-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+    .swatch-pos { background: var(--shap-pos); }
+    .swatch-neg { background: var(--shap-neg); }
+
+    .shap-section { margin-bottom: 24px; }
+    .shap-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-700);
+      margin-bottom: 8px;
+    }
+    .chart-wrap { position: relative; }
+
+    /* ── AI suggestions ── */
+    .ai-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .ai-header h2 { font-size: 16px; font-weight: 700; }
+    .ai-powered { font-size: 11px; color: var(--gray-400); margin-left: auto; }
+
+    .suggestion-list { list-style: none; }
+    .suggestion-list li {
+      display: flex;
+      gap: 10px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--gray-100);
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--gray-700);
+    }
+    .suggestion-list li:last-child { border-bottom: none; }
+    .suggestion-bullet {
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 18px;
+      line-height: 1.3;
+      flex-shrink: 0;
+    }
+
+    .loading-text {
+      color: var(--gray-400);
+      font-size: 14px;
+      padding: 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--gray-200);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-text { color: #b91c1c; font-size: 13px; padding: 8px 0; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--gray-900);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.25s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    .divider { height: 1px; background: var(--gray-100); margin: 14px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+  </svg>
+  <h1>Patient Risk Prediction</h1>
+  <span>Mortality · LOS · 30-Day Readmission</span>
+</header>
+
+<div class="container">
+
+  <!-- Config -->
+  <details class="card config-card" id="config-section">
+    <summary>⚙️ API Configuration</summary>
+    <div class="config-grid">
+      <div class="field-group">
+        <label>API Base URL</label>
+        <input type="url" id="api-url" placeholder="https://YOUR_ID.lambda-url.us-east-1.on.aws" />
+      </div>
+      <div class="field-group">
+        <label>API Key (x-api-key)</label>
+        <input type="password" id="api-key" placeholder="your-secret-key" />
+      </div>
+      <button class="btn btn-primary" onclick="saveConfig()">Save</button>
+    </div>
+  </details>
+
+  <!-- Main two-column grid -->
+  <div class="main-grid">
+
+    <!-- ── Left: Patient Form ── -->
+    <div class="form-column">
+
+      <!-- Demographics -->
+      <div class="card">
+        <div class="form-section-title">Demographics</div>
+        <div class="field-grid">
+          <div class="field-group">
+            <label>Age <span style="color:#ef4444">*</span></label>
+            <input type="number" id="age" min="0" max="130" placeholder="67" />
+          </div>
+          <div class="field-group">
+            <label>Gender <span style="color:#ef4444">*</span></label>
+            <select id="gender">
+              <option value="">— select —</option>
+              <option value="M">Male (M)</option>
+              <option value="F">Female (F)</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Race</label>
+            <input type="text" id="race" placeholder="WHITE" />
+          </div>
+          <div class="field-group">
+            <label>Language</label>
+            <input type="text" id="language" placeholder="ENGLISH" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Admission Details -->
+      <div class="card">
+        <div class="form-section-title">Admission Details</div>
+        <div class="field-grid">
+          <div class="field-group">
+            <label>Admission Type</label>
+            <select id="admission-type">
+              <option value="">— select —</option>
+              <option value="EMERGENCY">Emergency</option>
+              <option value="ELECTIVE">Elective</option>
+              <option value="URGENT">Urgent</option>
+              <option value="OBSERVATION">Observation</option>
+              <option value="EU OBSERVATION">EU Observation</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Insurance</label>
+            <select id="insurance">
+              <option value="">— select —</option>
+              <option value="Medicare">Medicare</option>
+              <option value="Medicaid">Medicaid</option>
+              <option value="Private">Private</option>
+              <option value="Government">Government</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Admission Location</label>
+            <input type="text" id="admission-location" placeholder="EMERGENCY ROOM" />
+          </div>
+          <div class="field-group">
+            <label>Marital Status</label>
+            <select id="marital-status">
+              <option value="">— select —</option>
+              <option value="MARRIED">Married</option>
+              <option value="SINGLE">Single</option>
+              <option value="DIVORCED">Divorced</option>
+              <option value="WIDOWED">Widowed</option>
+              <option value="SEPARATED">Separated</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="form-section-title">ED &amp; Timing</div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="has-ed-visit" onchange="toggleEdFields()" />
+          Patient had an ED visit prior to this admission
+        </label>
+
+        <div id="ed-fields" style="display:none; margin-top:8px;">
+          <div class="field-group">
+            <label>ED Length of Stay (hours)</label>
+            <input type="number" id="ed-los-hours" min="0" step="0.1" placeholder="4.5" />
+          </div>
+        </div>
+
+        <div class="field-grid" style="margin-top:10px;">
+          <div class="field-group">
+            <label>Admission Hour (0–23)</label>
+            <input type="number" id="admit-hour" min="0" max="23" placeholder="14" />
+            <span class="hint">Leave blank to default to noon</span>
+          </div>
+          <div class="field-group">
+            <label>Day of Week (0=Mon … 6=Sun)</label>
+            <input type="number" id="admit-dow" min="0" max="6" placeholder="2" />
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="form-section-title">Discharge &amp; History <span style="font-weight:400;text-transform:none;letter-spacing:0">(improves readmission prediction)</span></div>
+
+        <div class="field-grid">
+          <div class="field-group">
+            <label>Length of Stay (days)</label>
+            <input type="number" id="los-days" min="0" step="0.5" placeholder="5.0" />
+          </div>
+          <div class="field-group">
+            <label>Previous Admissions</label>
+            <input type="number" id="prev-admissions" min="0" placeholder="2" />
+          </div>
+          <div class="field-group">
+            <label>Days Since Last Admission</label>
+            <input type="number" id="days-since" min="0" step="0.5" placeholder="45" />
+          </div>
+          <div class="field-group">
+            <label>Discharge Location</label>
+            <input type="text" id="discharge-location" placeholder="HOME" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Clinical Codes -->
+      <div class="card">
+        <div class="form-section-title">Clinical Data</div>
+        <div class="field-grid cols-1">
+          <div class="field-group">
+            <label>Diagnoses — ICD codes, comma-separated</label>
+            <textarea id="diagnoses" placeholder="I10, E11.9, J18.9"></textarea>
+          </div>
+          <div class="field-group">
+            <label>Procedures — ICD codes, comma-separated</label>
+            <textarea id="procedures" placeholder="5A1955Z, 0BH17EZ"></textarea>
+          </div>
+          <div class="field-group">
+            <label>Medications — drug names, comma-separated</label>
+            <textarea id="medications" placeholder="aspirin, metformin, ceftriaxone"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-secondary" onclick="loadExample()">Load Example</button>
+        <button class="btn btn-primary btn-full" id="predict-btn" onclick="runPredict()">
+          Predict Risk
+        </button>
+      </div>
+
+    </div><!-- /form-column -->
+
+    <!-- ── Right: Results ── -->
+    <div id="results" hidden>
+
+      <!-- Risk cards -->
+      <div class="risk-cards-row">
+        <div class="risk-card risk-UNKNOWN" id="mortality-card">
+          <div class="rc-label">Mortality Risk</div>
+          <div class="rc-value">—</div>
+          <span class="risk-badge">—</span>
+        </div>
+        <div class="risk-card los-card" id="los-card">
+          <div class="rc-label">Predicted LOS</div>
+          <div class="rc-value">—</div>
+          <span class="risk-badge los-badge">DAYS</span>
+        </div>
+        <div class="risk-card risk-UNKNOWN" id="readmission-card">
+          <div class="rc-label">30-Day Readmission</div>
+          <div class="rc-value">—</div>
+          <span class="risk-badge">—</span>
+        </div>
+      </div>
+
+      <!-- Model votes -->
+      <div class="card">
+        <div class="card-title">
+          Model Consensus
+          <span class="badge" id="vote-summary"></span>
+        </div>
+        <div class="votes-grid" id="votes-container"></div>
+      </div>
+
+      <!-- SHAP section -->
+      <div class="card">
+        <div class="card-title">Feature Impact (SHAP)</div>
+        <div class="shap-legend">
+          <span><span class="shap-swatch swatch-pos"></span> Increases risk</span>
+          <span><span class="shap-swatch swatch-neg"></span> Decreases risk</span>
+        </div>
+
+        <div class="shap-section" id="mortality-shap-section">
+          <div class="shap-section-title">Mortality Risk Drivers</div>
+          <div class="chart-wrap">
+            <canvas id="mortality-shap-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="shap-section" id="los-shap-section">
+          <div class="shap-section-title">Length of Stay Drivers</div>
+          <div class="chart-wrap">
+            <canvas id="los-shap-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="shap-section" id="readmission-shap-section">
+          <div class="shap-section-title">30-Day Readmission Drivers</div>
+          <div class="chart-wrap">
+            <canvas id="readmission-shap-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /results -->
+
+  </div><!-- /main-grid -->
+
+  <!-- AI Suggestions -->
+  <div class="card" id="ai-section" hidden>
+    <div class="ai-header">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2">
+        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+        <path d="M12 6v6l4 2"/>
+      </svg>
+      <h2>AI Treatment Suggestions</h2>
+      <span class="ai-powered">Powered by Google Gemini</span>
+    </div>
+    <div id="ai-content">
+      <div class="loading-text"><div class="spinner"></div>Generating suggestions…</div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── Chart instances ──────────────────────────────────────────────────────────
+  const _charts = {};
+
+  // ── Config ──────────────────────────────────────────────────────────────────
+  function saveConfig() {
+    localStorage.setItem('apiUrl', document.getElementById('api-url').value.trim());
+    localStorage.setItem('apiKey', document.getElementById('api-key').value.trim());
+    showToast('Configuration saved');
+    document.getElementById('config-section').removeAttribute('open');
+  }
+
+  function loadConfig() {
+    const url = localStorage.getItem('apiUrl') || '';
+    const key = localStorage.getItem('apiKey') || '';
+    document.getElementById('api-url').value = url;
+    document.getElementById('api-key').value = key;
+    if (!url) document.getElementById('config-section').setAttribute('open', '');
+  }
+
+  function getConfig() {
+    return {
+      url: (localStorage.getItem('apiUrl') || document.getElementById('api-url').value).replace(/\/$/, ''),
+      key: localStorage.getItem('apiKey') || document.getElementById('api-key').value,
+    };
+  }
+
+  // ── Example data ─────────────────────────────────────────────────────────────
+  function loadExample() {
+    document.getElementById('age').value             = 67;
+    document.getElementById('gender').value          = 'M';
+    document.getElementById('race').value            = 'WHITE';
+    document.getElementById('language').value        = 'ENGLISH';
+    document.getElementById('admission-type').value  = 'EMERGENCY';
+    document.getElementById('admission-location').value = 'EMERGENCY ROOM';
+    document.getElementById('insurance').value       = 'Medicare';
+    document.getElementById('marital-status').value  = 'MARRIED';
+    document.getElementById('has-ed-visit').checked  = true;
+    document.getElementById('ed-los-hours').value    = 4.5;
+    document.getElementById('admit-hour').value      = 14;
+    document.getElementById('admit-dow').value       = 2;
+    document.getElementById('los-days').value        = 5.0;
+    document.getElementById('prev-admissions').value = 2;
+    document.getElementById('days-since').value      = 45.0;
+    document.getElementById('discharge-location').value = 'HOME';
+    document.getElementById('diagnoses').value   = 'I10, E11.9, J18.9';
+    document.getElementById('procedures').value  = '5A1955Z, 0BH17EZ';
+    document.getElementById('medications').value = 'aspirin, metformin, ceftriaxone';
+    toggleEdFields();
+  }
+
+  function toggleEdFields() {
+    const show = document.getElementById('has-ed-visit').checked;
+    document.getElementById('ed-fields').style.display = show ? 'block' : 'none';
+  }
+
+  // ── Payload builder ──────────────────────────────────────────────────────────
+  function parseList(str) {
+    return str.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  function numOrNull(id) {
+    const v = parseFloat(document.getElementById(id).value);
+    return isNaN(v) ? null : v;
+  }
+
+  function intOrNull(id) {
+    const v = parseInt(document.getElementById(id).value, 10);
+    return isNaN(v) ? null : v;
+  }
+
+  function strOrNull(id) {
+    const v = document.getElementById(id).value.trim();
+    return v || null;
+  }
+
+  function buildPayload() {
+    const hasEd = document.getElementById('has-ed-visit').checked;
+    return {
+      patient: {
+        demographics: {
+          age:      numOrNull('age'),
+          gender:   strOrNull('gender'),
+          race:     strOrNull('race'),
+          language: strOrNull('language'),
+        },
+        admission: {
+          admission_type:     strOrNull('admission-type'),
+          admission_location: strOrNull('admission-location'),
+          insurance:          strOrNull('insurance'),
+          marital_status:     strOrNull('marital-status'),
+          has_ed_visit:       hasEd,
+          ed_los_hours:       hasEd ? (numOrNull('ed-los-hours') ?? 0) : 0,
+          admit_hour:         intOrNull('admit-hour') ?? 12,
+          admit_day_of_week:  intOrNull('admit-dow')  ?? 0,
+          los_days:           numOrNull('los-days')   ?? 0,
+          previous_admissions:          intOrNull('prev-admissions') ?? 0,
+          days_since_last_admission:    numOrNull('days-since')      ?? 0,
+          discharge_location: strOrNull('discharge-location'),
+        },
+        diagnoses:   parseList(document.getElementById('diagnoses').value),
+        procedures:  parseList(document.getElementById('procedures').value),
+        medications: parseList(document.getElementById('medications').value),
+      }
+    };
+  }
+
+  // ── API calls ────────────────────────────────────────────────────────────────
+  async function runPredict() {
+    const cfg = getConfig();
+    if (!cfg.url) {
+      alert('Enter the API Base URL in the configuration section above.');
+      document.getElementById('config-section').setAttribute('open', '');
+      return;
+    }
+    const payload = buildPayload();
+    if (!payload.patient.demographics.age) {
+      alert('Age is required.');
+      return;
+    }
+    if (!payload.patient.demographics.gender) {
+      alert('Gender is required.');
+      return;
+    }
+
+    const btn = document.getElementById('predict-btn');
+    btn.disabled = true;
+    btn.textContent = 'Analyzing…';
+
+    try {
+      const resp = await fetch(`${cfg.url}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.key },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+
+      renderResults(data);
+      runSuggest(payload.patient, data);
+    } catch (e) {
+      alert(`Prediction failed: ${e.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Predict Risk';
+    }
+  }
+
+  async function runSuggest(patient, prediction) {
+    const cfg = getConfig();
+    const aiSection = document.getElementById('ai-section');
+    const aiContent = document.getElementById('ai-content');
+    aiSection.hidden = false;
+    aiContent.innerHTML = '<div class="loading-text"><div class="spinner"></div>Generating AI treatment suggestions…</div>';
+
+    try {
+      const resp = await fetch(`${cfg.url}/suggest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.key },
+        body: JSON.stringify({ patient, prediction }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      renderSuggestions(data.suggestions);
+    } catch (e) {
+      aiContent.innerHTML = `<p class="error-text">Could not load AI suggestions: ${e.message}</p>`;
+    }
+  }
+
+  // ── Render helpers ───────────────────────────────────────────────────────────
+  function renderResults(data) {
+    const resultsEl = document.getElementById('results');
+    resultsEl.hidden = false;
+
+    // Scroll results into view on mobile; on desktop it's already visible
+    if (window.innerWidth < 900) {
+      resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    const m  = data.mortality      || {};
+    const los = data.length_of_stay || {};
+    const ra = data.readmission_30d || {};
+    const shap = data.shap          || {};
+
+    renderRiskCard('mortality-card',   'Mortality Risk',       m.death_percentage,  m.risk_level);
+    renderLosCard('los-card', los.predicted_los_days);
+    renderRiskCard('readmission-card', '30-Day Readmission',   ra.readmission_percentage, ra.risk_level);
+
+    renderVotes(m.votes || {}, m.vote_fraction);
+
+    renderShapChart('mortality-shap-chart',   'mortality-shap-section',   shap.mortality,   'Mortality Risk — Feature Impact');
+    renderShapChart('los-shap-chart',         'los-shap-section',         shap.los,         'Length of Stay — Feature Impact');
+    renderShapChart('readmission-shap-chart', 'readmission-shap-section', shap.readmission, '30-Day Readmission — Feature Impact');
+  }
+
+  function renderRiskCard(id, label, pct, riskLevel) {
+    const el   = document.getElementById(id);
+    const lvl  = riskLevel || 'UNKNOWN';
+    el.className = `risk-card risk-${lvl}`;
+    el.innerHTML = `
+      <div class="rc-label">${label}</div>
+      <div class="rc-value">${pct != null ? pct.toFixed(1) + '%' : '—'}</div>
+      <span class="risk-badge">${lvl}</span>
+    `;
+  }
+
+  function renderLosCard(id, days) {
+    const el = document.getElementById(id);
+    el.className = 'risk-card los-card';
+    el.innerHTML = `
+      <div class="rc-label">Predicted LOS</div>
+      <div class="rc-value">${days != null ? days.toFixed(1) : '—'}</div>
+      <span class="risk-badge los-badge">DAYS</span>
+    `;
+  }
+
+  function renderVotes(votes, voteFraction) {
+    const container = document.getElementById('votes-container');
+    const summary   = document.getElementById('vote-summary');
+    const entries   = Object.entries(votes);
+    if (!entries.length) { container.innerHTML = ''; return; }
+
+    const yesCount = entries.filter(([, v]) => v === 1).length;
+    summary.textContent = `${yesCount} of ${entries.length} models predict mortality`;
+
+    container.innerHTML = entries.map(([model, vote]) => `
+      <div class="vote-chip">
+        <span class="vote-dot ${vote === 1 ? 'vote-dot-yes' : 'vote-dot-no'}"></span>
+        ${model.replace(/_/g, ' ')}
+      </div>
+    `).join('');
+  }
+
+  function renderShapChart(canvasId, sectionId, shapData, titleText) {
+    if (_charts[canvasId]) { _charts[canvasId].destroy(); delete _charts[canvasId]; }
+
+    const section = document.getElementById(sectionId);
+    if (!shapData || shapData.length === 0) {
+      if (section) section.style.display = 'none';
+      return;
+    }
+    if (section) section.style.display = 'block';
+
+    const labels   = shapData.map(d => d.display_name || d.feature);
+    const values   = shapData.map(d => d.value);
+    const bgColors = values.map(v => v >= 0 ? 'rgba(220,38,38,0.72)' : 'rgba(37,99,235,0.72)');
+
+    // Set canvas height based on number of features
+    const h = Math.max(260, shapData.length * 28 + 60);
+    const canvas = document.getElementById(canvasId);
+    canvas.parentElement.style.height = h + 'px';
+    canvas.style.height = h + 'px';
+
+    _charts[canvasId] = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: bgColors,
+          borderWidth: 0,
+          borderRadius: 3,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const v = ctx.raw;
+                const dir = v >= 0 ? '↑ increases' : '↓ decreases';
+                return `${dir} risk (${v >= 0 ? '+' : ''}${v.toFixed(4)})`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'SHAP value', color: '#9ca3af', font: { size: 11 } },
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: { color: '#6b7280', font: { size: 11 } }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: '#374151', font: { size: 11, family: 'Inter' } }
+          }
+        }
+      }
+    });
+  }
+
+  function renderSuggestions(text) {
+    const aiContent = document.getElementById('ai-content');
+    const lines  = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const bullets = lines.filter(l => /^[•\-\*]/.test(l) || /^\d[\.\)]/.test(l));
+
+    if (bullets.length === 0) {
+      aiContent.innerHTML = `<p style="font-size:14px;line-height:1.7;color:#374151">${text.replace(/\n/g,'<br>')}</p>`;
+      return;
+    }
+    const items = bullets.map(b => {
+      const clean = b.replace(/^[•\-\*\d\.\)\s]+/, '').trim();
+      return `<li><span class="suggestion-bullet">•</span><span>${clean}</span></li>`;
+    }).join('');
+    aiContent.innerHTML = `<ul class="suggestion-list">${items}</ul>`;
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+  window.addEventListener('load', () => {
+    loadConfig();
+    toggleEdFields();
+  });
+</script>
+
+</body>
+</html>
